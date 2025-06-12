@@ -111,9 +111,6 @@ if (-not $chocoInstalled) {
 
 # 1. Install latest Python
 Show-SectionHeader "Installing Python"
-# Use 'python3' package for Python 3, 'python' for Python 2.x
-# Ensure python3 is available in Choco repository, otherwise use 'python'.
-# --confirm or -y confirms all prompts.
 try {
     Show-Warning "Installing Python via Chocolatey. This might take a few moments..."
     choco install python3 --confirm -Force -ErrorAction Stop # Use -Force to reinstall if partial install.
@@ -175,13 +172,18 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     }
 }
 
-# 5. Modify defaults.json
-Show-SectionHeader "Configuring defaults.json"
+# 5. Modify defaults.json to preferences.json
+Show-SectionHeader "Configuring preferences.json"
 $defaultsJsonPath = Join-Path $repoFolder "defaults.json"
+$preferencesJsonPath = Join-Path $repoFolder "preferences.json"
 
 if (Test-Path $defaultsJsonPath) {
     try {
-        $jsonContent = Get-Content $defaultsJsonPath | ConvertFrom-Json
+        # Copy defaults.json to preferences.json
+        Copy-Item -Path $defaultsJsonPath -Destination $preferencesJsonPath -Force
+        Show-Success "defaults.json copied to preferences.json."
+
+        $jsonContent = Get-Content $preferencesJsonPath | ConvertFrom-Json
 
         # Prompt for user ID or generate random
         Write-Host ""
@@ -198,20 +200,41 @@ if (Test-Path $defaultsJsonPath) {
             $userId = Generate-RandomTechyUsername
             Show-Warning "Generating a random user ID."
         }
-
         Show-Success "Setting user_id to: $userId"
         $jsonContent.user_id = $userId
         $jsonContent.user_update_index = -1
         Show-Success "Setting user_update_index to: -1"
 
-        $jsonContent | ConvertTo-Json -Depth 4 | Set-Content $defaultsJsonPath
-        Show-Success "defaults.json updated successfully."
+        # Prompt for batch_name (optional)
+        Write-Host ""
+        $batchName = Read-Host "Enter an optional batch name (press Enter for none)"
+        if ([string]::IsNullOrWhiteSpace($batchName)) {
+            $jsonContent.batch_name = ""
+            Show-Warning "No batch name entered. Setting to empty string."
+        } else {
+            $jsonContent.batch_name = $batchName
+            Show-Success "Setting batch_name to: $batchName"
+        }
+
+        # Prompt for video_id (optional)
+        Write-Host ""
+        $videoId = Read-Host "Enter an optional video ID (press Enter for none)"
+        if ([string]::IsNullOrWhiteSpace($videoId)) {
+            $jsonContent.video_id = ""
+            Show-Warning "No video ID entered. Setting to empty string."
+        } else {
+            $jsonContent.video_id = $videoId
+            Show-Success "Setting video_id to: $videoId"
+        }
+
+        $jsonContent | ConvertTo-Json -Depth 4 | Set-Content $preferencesJsonPath
+        Show-Success "preferences.json updated successfully."
     }
     catch {
-        Show-Error "Failed to modify defaults.json: $($_.Exception.Message)"
+        Show-Error "Failed to modify preferences.json: $($_.Exception.Message)"
     }
 } else {
-    Show-Error "defaults.json not found at '$defaultsJsonPath'. Skipping modification."
+    Show-Error "defaults.json not found at '$defaultsJsonPath'. Cannot create preferences.json."
 }
 
 # 6. Install requirements and add pwdlv3 folder to PATH (permanently)
